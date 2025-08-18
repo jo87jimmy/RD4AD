@@ -137,13 +137,28 @@ def train(_class_):
 
 
 if __name__ == '__main__':
+    import argparse
+    import pandas as pd
+    import os
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--category', default='bottle', type=str)
+    parser.add_argument('--epochs', default=25, type=int)
+    args = parser.parse_args()
 
     setup_seed(111)
-    item_list = ['carpet']
-    # item_list = [
-    #     'carpet', 'bottle', 'hazelnut', 'leather', 'cable', 'capsule', 'grid',
-    #     'pill', 'transistor', 'metal_nut', 'screw', 'toothbrush', 'zipper',
-    #     'tile', 'wood'
-    # ]
-    for i in item_list:
-        train(i)
+    auroc_px, aupro_px = train(args.category, args.epochs)
+
+    df_metrics = pd.DataFrame([{
+        'Category': args.category,
+        'AUROC': auroc_px,
+        'AUPRO': aupro_px,
+        'Epochs': args.epochs
+    }])
+    if not os.path.exists('metrics_all.csv'):
+        df_metrics.to_csv('metrics_all.csv', index=False)
+    else:
+        df_metrics.to_csv('metrics_all.csv',
+                          mode='a',
+                          header=False,
+                          index=False)
