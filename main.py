@@ -70,25 +70,26 @@ def loss_concat(a, b):
     return loss
 
 
-def train(_class_):
-    print(_class_)
-    epochs = 2
+def train(_class_, epochs):
+    print(f"🔧 類別: {_class_} | Epochs: {epochs}")
     learning_rate = 0.005
     batch_size = 16
     image_size = 256
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(device)
+    print(f"🖥️ 使用裝置: {device}")
 
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
-    train_path = './mvtec/' + _class_ + '/train'
-    test_path = './mvtec/' + _class_
-    ckp_path = './checkpoints/' + 'wres50_' + _class_ + '.pth'
+    train_path = f'./mvtec/{_class_}/train'
+    test_path = f'./mvtec/{_class_}'
+    ckp_path = f'./checkpoints/wres50_{_class_}.pth'
+
     train_data = ImageFolder(root=train_path, transform=data_transform)
     test_data = MVTecDataset(root=test_path,
                              transform=data_transform,
                              gt_transform=gt_transform,
                              phase="test")
+
     train_dataloader = torch.utils.data.DataLoader(train_data,
                                                    batch_size=batch_size,
                                                    shuffle=True)
@@ -115,24 +116,27 @@ def train(_class_):
         for img, label in train_dataloader:
             img = img.to(device)
             inputs = encoder(img)
-            outputs = decoder(bn(inputs))  #bn(inputs))
+            outputs = decoder(bn(inputs))
             loss = loss_fucntion(inputs, outputs)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             loss_list.append(loss.item())
-        print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs,
-                                                  np.mean(loss_list)))
-        # if (epoch + 1) % 10 == 0:
+
+        print(
+            f"📘 Epoch [{epoch + 1}/{epochs}] | Loss: {np.mean(loss_list):.4f}")
+
         if (epoch + 1) == epochs:
             auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder,
                                                       test_dataloader, device)
-            print('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}, Pixel Aupro{:.3}'.
-                  format(auroc_px, auroc_sp, aupro_px))
+            print(
+                f"✅ 評估結果 | Pixel AUROC: {auroc_px:.3f}, Sample AUROC: {auroc_sp:.3f}, Pixel AUPRO: {aupro_px:.3f}"
+            )
             torch.save({
                 'bn': bn.state_dict(),
                 'decoder': decoder.state_dict()
             }, ckp_path)
+
     return auroc_px, auroc_sp, aupro_px
 
 
@@ -147,12 +151,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     setup_seed(111)
-    auroc_px, aupro_px = train(args.category, args.epochs)
+    auroc_px, auroc_sp, aupro_px = train(args.category, args.epochs)
 
     df_metrics = pd.DataFrame([{
         'Category': args.category,
-        'AUROC': auroc_px,
-        'AUPRO': aupro_px,
+        'Pixel_AUROC': auroc_px,
+        'Sample_AUROC': auroc_sp,
+        'Pixel_AUPRO': aupro_px,
         'Epochs': args.epochs
     }])
     if not os.path.exists('metrics_all.csv'):
