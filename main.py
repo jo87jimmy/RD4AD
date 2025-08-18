@@ -123,7 +123,8 @@ def train(_class_):
             loss_list.append(loss.item())
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs,
                                                   np.mean(loss_list)))
-        if (epoch + 1) % 10 == 0:
+        # if (epoch + 1) % 10 == 0:
+        if (epoch + 1) == epochs:
             auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder,
                                                       test_dataloader, device)
             print('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}, Pixel Aupro{:.3}'.
