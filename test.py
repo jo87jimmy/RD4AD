@@ -414,12 +414,12 @@ def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> None:
         fp_pixels = np.logical_and(inverse_masks, binary_amaps).sum()
         fpr = fp_pixels / inverse_masks.sum()
 
-        df = df.append({
-            "pro": mean(pros),
-            "fpr": fpr,
-            "threshold": th
-        },
-                       ignore_index=True)
+        # 創建一個包含新行資料的字典
+        new_row_data = {"pro": mean(pros), "fpr": fpr, "threshold": th}
+        # 將字典轉換為一個單行 DataFrame
+        new_row_df = pd.DataFrame([new_row_data])
+        # 使用 pd.concat 將新行添加到現有的 df
+        df = pd.concat([df, new_row_df], ignore_index=True)
 
     # Normalize FPR from 0 ~ 1 to 0 ~ 0.3
     df = df[df["fpr"] < 0.3]
