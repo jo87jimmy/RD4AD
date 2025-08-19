@@ -82,7 +82,10 @@ def train(_class_, epochs):
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
     train_path = f'./mvtec/{_class_}/train'
     test_path = f'./mvtec/{_class_}'
-    ckp_path = f'./checkpoints/wres50_{_class_}.pth'
+
+    # 確保 Kaggle working 資料夾存在
+    os.makedirs('/kaggle/working/checkpoints', exist_ok=True)
+    best_ckp_path = f'/kaggle/working/checkpoints/best_wres50_{_class_}.pth'
 
     train_data = ImageFolder(root=train_path, transform=data_transform)
     test_data = MVTecDataset(root=test_path,
@@ -109,6 +112,8 @@ def train(_class_, epochs):
                                  lr=learning_rate,
                                  betas=(0.5, 0.999))
 
+    best_score = -1  # 初始化最佳 AUROC
+
     for epoch in range(epochs):
         bn.train()
         decoder.train()
@@ -126,21 +131,22 @@ def train(_class_, epochs):
         print(
             f"📘 Epoch [{epoch + 1}/{epochs}] | Loss: {np.mean(loss_list):.4f}")
 
-        if (epoch + 1) == epochs:
-            auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder,
-                                                      test_dataloader, device)
-            print(
-                f"✅ 評估結果 | Pixel AUROC: {auroc_px:.3f}, Sample AUROC: {auroc_sp:.3f}, Pixel AUPRO: {aupro_px:.3f}"
-            )
-            # 建立 checkpoints 資料夾（如果尚未存在）
-            os.makedirs('./checkpoints', exist_ok=True)
-            # 然後再執行 torch.save()
+        # 每個 epoch 都評估一次
+        auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder,
+                                                  test_dataloader, device)
+        print(f"🔍 評估結果 | Pixel AUROC: {auroc_px:.3f}")
+
+        # 更新最佳模型
+        if auroc_px > best_score:
+            best_score = auroc_px
             torch.save({
                 'bn': bn.state_dict(),
                 'decoder': decoder.state_dict()
-            }, ckp_path)
+            }, best_ckp_path)
+            print(f"💾 更新最佳模型 ({best_score:.3f}) → {best_ckp_path}")
 
-    return auroc_px, auroc_sp, aupro_px
+    # 訓練結束回傳最佳結果
+    return best_score, auroc_sp, aupro_px
 
 
 if __name__ == '__main__':
