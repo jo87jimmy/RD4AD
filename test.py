@@ -153,7 +153,7 @@ def test(_class_):
 import os
 
 
-def visualization(_class_,_arch_, save_path=None, ckp_path=None):
+def visualization(_arch_,_class_, save_path=None, ckp_path=None):
     print(f"🖼️ 開始可視化類別: {_class_}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
