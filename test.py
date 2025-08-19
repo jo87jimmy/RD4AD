@@ -153,13 +153,16 @@ def test(_class_):
 import os
 
 
-def visualization(_class_, save_path=None):
+def visualization(_class_, save_path=None, ckp_path=None):
     print(f"🖼️ 開始可視化類別: {_class_}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     data_transform, gt_transform = get_data_transforms(256, 256)
-    test_path = f'./mvtec/{_class_}'  # ✅ 修正路徑，與 train() 一致
-    ckp_path = f'./checkpoints/wres50_{_class_}.pth'  # ✅ 與 train() 儲存一致
+    test_path = f'./mvtec/{_class_}'  # 與 train() 一致
+
+    # ✅ 如果外部沒傳入 ckp_path，就用預設值
+    if ckp_path is None:
+        ckp_path = f'./checkpoints/wres50_{_class_}.pth'
 
     test_data = MVTecDataset(root=test_path,
                              transform=data_transform,
@@ -177,14 +180,15 @@ def visualization(_class_, save_path=None):
     decoder = de_wide_resnet50_2(pretrained=False)
     decoder = decoder.to(device)
 
-    ckp = torch.load(ckp_path)
+    # ✅ 載入最佳模型權重
+    ckp = torch.load(ckp_path, map_location=device)
     for k in list(ckp['bn'].keys()):
         if 'memory' in k:
             del ckp['bn'][k]
     decoder.load_state_dict(ckp['decoder'])
     bn.load_state_dict(ckp['bn'])
 
-    # 🔧 建立儲存資料夾
+    # 建立儲存資料夾
     save_dir = save_path if save_path else f'results/{_class_}'
     os.makedirs(save_dir, exist_ok=True)
 
@@ -211,10 +215,9 @@ def visualization(_class_, save_path=None):
 
             overlay = show_cam_on_image(img_norm, ano_map)
 
-            # ✅ 儲存原圖與熱力圖
+            # 儲存原圖與熱力圖
             cv2.imwrite(f"{save_dir}/{count:03d}_org.png", img_norm)
             cv2.imwrite(f"{save_dir}/{count:03d}_ad.png", overlay)
-
             count += 1
 
     print(f"✅ 可視化完成，共儲存 {count} 張圖片至 {save_dir}")
