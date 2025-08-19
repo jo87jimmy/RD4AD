@@ -373,59 +373,71 @@ def vis_nd(name, _class_):
             pickle.dump(vis_data, f, pickle.HIGHEST_PROTOCOL)
 
 
-def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> None:
-    """Compute the area under the curve of per-region overlaping (PRO) and 0 to 0.3 FPR
+import numpy as np
+import pandas as pd
+from numpy import ndarray
+from skimage import measure
+from sklearn.metrics import auc
+from statistics import mean
+
+
+def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> float:
+    """計算每個區域重疊率（PRO）與 FPR 在 0~0.3 區間的 AUC
     Args:
-        category (str): Category of product
-        masks (ndarray): All binary masks in test. masks.shape -> (num_test_data, h, w)
-        amaps (ndarray): All anomaly maps in test. amaps.shape -> (num_test_data, h, w)
-        num_th (int, optional): Number of thresholds
+        masks (ndarray): 測試資料的二值遮罩，形狀為 (num_test_data, h, w)
+        amaps (ndarray): 測試資料的異常圖，形狀為 (num_test_data, h, w)
+        num_th (int): 閾值數量，用於掃描不同的二值化門檻
+    Returns:
+        float: PRO AUC 值
     """
 
-    assert isinstance(amaps, ndarray), "type(amaps) must be ndarray"
-    assert isinstance(masks, ndarray), "type(masks) must be ndarray"
-    assert amaps.ndim == 3, "amaps.ndim must be 3 (num_test_data, h, w)"
-    assert masks.ndim == 3, "masks.ndim must be 3 (num_test_data, h, w)"
-    assert amaps.shape == masks.shape, "amaps.shape and masks.shape must be same"
-    assert set(masks.flatten()) == {0,
-                                    1}, "set(masks.flatten()) must be {0, 1}"
-    assert isinstance(num_th, int), "type(num_th) must be int"
+    # --- 資料驗證 ---
+    assert isinstance(amaps, ndarray), "amaps 必須是 ndarray"
+    assert isinstance(masks, ndarray), "masks 必須是 ndarray"
+    assert amaps.ndim == 3 and masks.ndim == 3, "amaps 和 masks 必須是三維陣列"
+    assert amaps.shape == masks.shape, "amaps 和 masks 的形狀必須一致"
+    assert set(np.unique(masks)) <= {0, 1}, "masks 必須是二值 (0 或 1)"
+    assert isinstance(num_th, int), "num_th 必須是整數"
 
-    df = pd.DataFrame([], columns=["pro", "fpr", "threshold"])
-    binary_amaps = np.zeros_like(amaps, dtype=bool)
+    # --- 初始化 ---
+    df = pd.DataFrame(columns=["pro", "fpr", "threshold"])
+    min_th, max_th = amaps.min(), amaps.max()
+    thresholds = np.linspace(min_th, max_th, num_th)
 
-    min_th = amaps.min()
-    max_th = amaps.max()
-    delta = (max_th - min_th) / num_th
-
-    for th in np.arange(min_th, max_th, delta):
-        binary_amaps[amaps <= th] = 0
-        binary_amaps[amaps > th] = 1
+    # --- 閾值掃描 ---
+    for th in thresholds:
+        binary_amaps = (amaps > th).astype(np.uint8)
 
         pros = []
         for binary_amap, mask in zip(binary_amaps, masks):
-            for region in measure.regionprops(measure.label(mask)):
-                axes0_ids = region.coords[:, 0]
-                axes1_ids = region.coords[:, 1]
-                tp_pixels = binary_amap[axes0_ids, axes1_ids].sum()
+            labeled_mask = measure.label(mask)
+            for region in measure.regionprops(labeled_mask):
+                coords = region.coords
+                tp_pixels = binary_amap[coords[:, 0], coords[:, 1]].sum()
                 pros.append(tp_pixels / region.area)
 
         inverse_masks = 1 - masks
         fp_pixels = np.logical_and(inverse_masks, binary_amaps).sum()
         fpr = fp_pixels / inverse_masks.sum()
 
-        # 創建一個包含新行資料的字典
-        new_row_data = {"pro": mean(pros), "fpr": fpr, "threshold": th}
-        # 將字典轉換為一個單行 DataFrame
-        new_row_df = pd.DataFrame([new_row_data])
-        # 使用 pd.concat 將新行添加到現有的 df
-        df = pd.concat([df, new_row_df], ignore_index=True)
+        df = pd.concat([
+            df,
+            pd.DataFrame([{
+                "pro": mean(pros) if pros else 0,
+                "fpr": fpr,
+                "threshold": th
+            }])
+        ],
+                       ignore_index=True)
 
-    # Normalize FPR from 0 ~ 1 to 0 ~ 0.3
+    # --- FPR 正規化與 AUC 計算 ---
     df = df[df["fpr"] < 0.3]
-    df["fpr"] = df["fpr"] / df["fpr"].max()
+    if df.empty or df["fpr"].max() == 0:
+        return 0.0
 
+    df["fpr"] = df["fpr"] / df["fpr"].max()
     pro_auc = auc(df["fpr"], df["pro"])
+
     return pro_auc
 
 
