@@ -157,6 +157,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--category', default='bottle', type=str)
     parser.add_argument('--epochs', default=25, type=int)
+    parser.add_argument('--arch', default='wres50', type=str)
     args = parser.parse_args()
 
     setup_seed(111)
@@ -170,16 +171,14 @@ if __name__ == '__main__':
     ckpt_dir = os.path.join(working_dir, "checkpoints")
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    # 你的模型架構代號（用於檔名一致性，配合你備份腳本的 best_wres50_*.pth）
-    arch_name = "wres50"
     # 產生清楚的檔名：模型-類別-指標-epochs-時間戳
     ts = time.strftime("%Y%m%d_%H%M%S")
-    nice_name = f"best_{arch_name}_{args.category}_pxAUC{auroc_px:.4f}_e{args.epochs}_{ts}.pth"
+    nice_name = f"best_{args.arch}_{args.category}_pxAUC{auroc_px:.4f}_e{args.epochs}_{ts}.pth"
     nice_path = os.path.join(ckpt_dir, nice_name)
 
     # 實際存檔（只存權重：建議存 state_dict，載入更穩定）
     torch.save({
-        "arch": arch_name,
+        "arch": args.arch,
         "category": args.category,
         "epochs": args.epochs,
         "metrics": {
@@ -192,7 +191,7 @@ if __name__ == '__main__':
     }, nice_path)
 
     # 同步一份固定檔名給 Step 10 抓
-    fixed_name = f"best_{arch_name}_{args.category}.pth"
+    fixed_name = f"best_{args.arch}_{args.category}.pth"
     shutil.copy2(nice_path, fixed_name)
     print(f"📦 已同步固定檔名：{fixed_name}")
 
@@ -204,12 +203,13 @@ if __name__ == '__main__':
         'Pixel_AUPRO': aupro_px,
         'Epochs': args.epochs
     }])
-    df_metrics.to_csv('metrics_all.csv',
+    metrics_name = f"metrics_{args.arch}_{args.category}.csv"
+    df_metrics.to_csv(metrics_name,
                       mode='a',
-                      header=not os.path.exists('metrics_all.csv'),
+                      header=not os.path.exists(metrics_name),
                       index=False)
 
     # 🔥 訓練結束自動可視化
-    visualization(args.category,
+    visualization(args.arch,args.category,
                   ckp_path=best_ckp,
-                  save_path=f"results/{args.category}")
+                  save_path=f"results/{args.arch}_{args.category}")

@@ -153,7 +153,7 @@ def test(_class_):
 import os
 
 
-def visualization(_class_, save_path=None, ckp_path=None):
+def visualization(_class_,_arch_, save_path=None, ckp_path=None):
     print(f"🖼️ 開始可視化類別: {_class_}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -162,7 +162,7 @@ def visualization(_class_, save_path=None, ckp_path=None):
 
     # ✅ 如果外部沒傳入 ckp_path，就用預設值
     if ckp_path is None:
-        ckp_path = f'./checkpoints/wres50_{_class_}.pth'
+        ckp_path = f'./checkpoints/{_arch_}_{_class_}.pth'
 
     test_data = MVTecDataset(root=test_path,
                              transform=data_transform,
