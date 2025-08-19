@@ -170,3 +170,5 @@ if __name__ == '__main__':
                           mode='a',
                           header=False,
                           index=False)
+    # 🔥 加入可視化儲存
+    visualization(args.category, save_path=f"results/{args.category}")

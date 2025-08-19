@@ -153,14 +153,14 @@ def test(_class_):
 import os
 
 
-def visualization(_class_):
-    print(_class_)
+def visualization(_class_, save_path=None):
+    print(f"🖼️ 開始可視化類別: {_class_}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(device)
 
     data_transform, gt_transform = get_data_transforms(256, 256)
-    test_path = '../mvtec/' + _class_
-    ckp_path = './checkpoints/' + 'rm_1105_wres50_ff_mm_' + _class_ + '.pth'
+    test_path = f'./mvtec/{_class_}'  # ✅ 修正路徑，與 train() 一致
+    ckp_path = f'./checkpoints/wres50_{_class_}.pth'  # ✅ 與 train() 儲存一致
+
     test_data = MVTecDataset(root=test_path,
                              transform=data_transform,
                              gt_transform=gt_transform,
@@ -172,89 +172,156 @@ def visualization(_class_):
     encoder, bn = wide_resnet50_2(pretrained=True)
     encoder = encoder.to(device)
     bn = bn.to(device)
-
     encoder.eval()
+
     decoder = de_wide_resnet50_2(pretrained=False)
     decoder = decoder.to(device)
+
     ckp = torch.load(ckp_path)
-    for k, v in list(ckp['bn'].items()):
+    for k in list(ckp['bn'].keys()):
         if 'memory' in k:
-            ckp['bn'].pop(k)
+            del ckp['bn'][k]
     decoder.load_state_dict(ckp['decoder'])
     bn.load_state_dict(ckp['bn'])
+
+    # 🔧 建立儲存資料夾
+    save_dir = save_path if save_path else f'results/{_class_}'
+    os.makedirs(save_dir, exist_ok=True)
 
     count = 0
     with torch.no_grad():
         for img, gt, label, _ in test_dataloader:
-            if (label.item() == 0):
+            if label.item() == 0:
                 continue
-            #if count <= 10:
-            #    count += 1
-            #    continue
-
-            decoder.eval()
-            bn.eval()
 
             img = img.to(device)
             inputs = encoder(img)
             outputs = decoder(bn(inputs))
 
-            #inputs.append(feature)
-            #inputs.append(outputs)
-            #t_sne(inputs)
-
-            anomaly_map, amap_list = cal_anomaly_map([inputs[-1]],
-                                                     [outputs[-1]],
-                                                     img.shape[-1],
-                                                     amap_mode='a')
+            anomaly_map, _ = cal_anomaly_map([inputs[-1]], [outputs[-1]],
+                                             img.shape[-1],
+                                             amap_mode='a')
             anomaly_map = gaussian_filter(anomaly_map, sigma=4)
             ano_map = min_max_norm(anomaly_map)
             ano_map = cvt2heatmap(ano_map * 255)
-            img = cv2.cvtColor(
-                img.permute(0, 2, 3, 1).cpu().numpy()[0] * 255,
-                cv2.COLOR_BGR2RGB)
-            img = np.uint8(min_max_norm(img) * 255)
-            #if not os.path.exists('./results_all/'+_class_):
-            #    os.makedirs('./results_all/'+_class_)
-            #cv2.imwrite('./results_all/'+_class_+'/'+str(count)+'_'+'org.png',img)
-            #plt.imshow(img)
-            #plt.axis('off')
-            #plt.savefig('org.png')
-            #plt.show()
-            ano_map = show_cam_on_image(img, ano_map)
-            #cv2.imwrite('./results_all/'+_class_+'/'+str(count)+'_'+'ad.png', ano_map)
-            plt.imshow(ano_map)
-            plt.axis('off')
-            #plt.savefig('ad.png')
-            plt.show()
 
-            gt = gt.cpu().numpy().astype(int)[0][0] * 255
-            #cv2.imwrite('./results/'+_class_+'_'+str(count)+'_'+'gt.png', gt)
+            img_np = img.permute(0, 2, 3, 1).cpu().numpy()[0] * 255
+            img_np = cv2.cvtColor(img_np.astype(np.uint8), cv2.COLOR_BGR2RGB)
+            img_norm = np.uint8(min_max_norm(img_np) * 255)
 
-            #b, c, h, w = inputs[2].shape
-            #t_feat = F.normalize(inputs[2], p=2).view(c, -1).permute(1, 0).cpu().numpy()
-            #s_feat = F.normalize(outputs[2], p=2).view(c, -1).permute(1, 0).cpu().numpy()
-            #c = 1-min_max_norm(cv2.resize(anomaly_map,(h,w))).flatten()
-            #print(c.shape)
-            #t_sne([t_feat, s_feat], c)
-            #assert 1 == 2
+            overlay = show_cam_on_image(img_norm, ano_map)
 
-            #name = 0
-            #for anomaly_map in amap_list:
-            #    anomaly_map = gaussian_filter(anomaly_map, sigma=4)
-            #    ano_map = min_max_norm(anomaly_map)
-            #    ano_map = cvt2heatmap(ano_map * 255)
-            #ano_map = show_cam_on_image(img, ano_map)
-            #cv2.imwrite(str(name) + '.png', ano_map)
-            #plt.imshow(ano_map)
-            #plt.axis('off')
-            #plt.savefig(str(name) + '.png')
-            #plt.show()
-            #    name+=1
+            # ✅ 儲存原圖與熱力圖
+            cv2.imwrite(f"{save_dir}/{count:03d}_org.png", img_norm)
+            cv2.imwrite(f"{save_dir}/{count:03d}_ad.png", overlay)
+
             count += 1
-            #if count>20:
-            #    return 0
-            #assert 1==2
+
+    print(f"✅ 可視化完成，共儲存 {count} 張圖片至 {save_dir}")
+
+
+# def visualization(_class_):
+#     print(_class_)
+#     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#     print(device)
+
+#     data_transform, gt_transform = get_data_transforms(256, 256)
+#     test_path = '../mvtec/' + _class_
+#     ckp_path = './checkpoints/' + 'rm_1105_wres50_ff_mm_' + _class_ + '.pth'
+#     test_data = MVTecDataset(root=test_path,
+#                              transform=data_transform,
+#                              gt_transform=gt_transform,
+#                              phase="test")
+#     test_dataloader = torch.utils.data.DataLoader(test_data,
+#                                                   batch_size=1,
+#                                                   shuffle=False)
+
+#     encoder, bn = wide_resnet50_2(pretrained=True)
+#     encoder = encoder.to(device)
+#     bn = bn.to(device)
+
+#     encoder.eval()
+#     decoder = de_wide_resnet50_2(pretrained=False)
+#     decoder = decoder.to(device)
+#     ckp = torch.load(ckp_path)
+#     for k, v in list(ckp['bn'].items()):
+#         if 'memory' in k:
+#             ckp['bn'].pop(k)
+#     decoder.load_state_dict(ckp['decoder'])
+#     bn.load_state_dict(ckp['bn'])
+
+#     count = 0
+#     with torch.no_grad():
+#         for img, gt, label, _ in test_dataloader:
+#             if (label.item() == 0):
+#                 continue
+#             #if count <= 10:
+#             #    count += 1
+#             #    continue
+
+#             decoder.eval()
+#             bn.eval()
+
+#             img = img.to(device)
+#             inputs = encoder(img)
+#             outputs = decoder(bn(inputs))
+
+#             #inputs.append(feature)
+#             #inputs.append(outputs)
+#             #t_sne(inputs)
+
+#             anomaly_map, amap_list = cal_anomaly_map([inputs[-1]],
+#                                                      [outputs[-1]],
+#                                                      img.shape[-1],
+#                                                      amap_mode='a')
+#             anomaly_map = gaussian_filter(anomaly_map, sigma=4)
+#             ano_map = min_max_norm(anomaly_map)
+#             ano_map = cvt2heatmap(ano_map * 255)
+#             img = cv2.cvtColor(
+#                 img.permute(0, 2, 3, 1).cpu().numpy()[0] * 255,
+#                 cv2.COLOR_BGR2RGB)
+#             img = np.uint8(min_max_norm(img) * 255)
+#             #if not os.path.exists('./results_all/'+_class_):
+#             #    os.makedirs('./results_all/'+_class_)
+#             #cv2.imwrite('./results_all/'+_class_+'/'+str(count)+'_'+'org.png',img)
+#             #plt.imshow(img)
+#             #plt.axis('off')
+#             #plt.savefig('org.png')
+#             #plt.show()
+#             ano_map = show_cam_on_image(img, ano_map)
+#             #cv2.imwrite('./results_all/'+_class_+'/'+str(count)+'_'+'ad.png', ano_map)
+#             plt.imshow(ano_map)
+#             plt.axis('off')
+#             #plt.savefig('ad.png')
+#             plt.show()
+
+#             gt = gt.cpu().numpy().astype(int)[0][0] * 255
+#             #cv2.imwrite('./results/'+_class_+'_'+str(count)+'_'+'gt.png', gt)
+
+#             #b, c, h, w = inputs[2].shape
+#             #t_feat = F.normalize(inputs[2], p=2).view(c, -1).permute(1, 0).cpu().numpy()
+#             #s_feat = F.normalize(outputs[2], p=2).view(c, -1).permute(1, 0).cpu().numpy()
+#             #c = 1-min_max_norm(cv2.resize(anomaly_map,(h,w))).flatten()
+#             #print(c.shape)
+#             #t_sne([t_feat, s_feat], c)
+#             #assert 1 == 2
+
+#             #name = 0
+#             #for anomaly_map in amap_list:
+#             #    anomaly_map = gaussian_filter(anomaly_map, sigma=4)
+#             #    ano_map = min_max_norm(anomaly_map)
+#             #    ano_map = cvt2heatmap(ano_map * 255)
+#             #ano_map = show_cam_on_image(img, ano_map)
+#             #cv2.imwrite(str(name) + '.png', ano_map)
+#             #plt.imshow(ano_map)
+#             #plt.axis('off')
+#             #plt.savefig(str(name) + '.png')
+#             #plt.show()
+#             #    name+=1
+#             count += 1
+#             #if count>20:
+#             #    return 0
+#             #assert 1==2
 
 
 def vis_nd(name, _class_):
