@@ -393,7 +393,12 @@ def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> float:
     assert isinstance(num_th, int), "num_th 必須是整數"
 
     # --- 初始化 ---
-    df = pd.DataFrame(columns=["pro", "fpr", "threshold"])
+    # df = pd.DataFrame(columns=["pro", "fpr", "threshold"])
+    df = pd.DataFrame({
+        "pro": pd.Series(dtype="float"),
+        "fpr": pd.Series(dtype="float"),
+        "threshold": pd.Series(dtype="float")
+    })
     min_th, max_th = amaps.min(), amaps.max()
     thresholds = np.linspace(min_th, max_th, num_th)
 
