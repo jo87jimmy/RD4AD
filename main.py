@@ -132,6 +132,9 @@ def train(_class_, epochs):
             print(
                 f"✅ 評估結果 | Pixel AUROC: {auroc_px:.3f}, Sample AUROC: {auroc_sp:.3f}, Pixel AUPRO: {aupro_px:.3f}"
             )
+            # 建立 checkpoints 資料夾（如果尚未存在）
+            os.makedirs('./checkpoints', exist_ok=True)
+            # 然後再執行 torch.save()
             torch.save({
                 'bn': bn.state_dict(),
                 'decoder': decoder.state_dict()
