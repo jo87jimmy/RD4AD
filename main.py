@@ -112,7 +112,9 @@ def train(_class_, epochs):
                                  lr=learning_rate,
                                  betas=(0.5, 0.999))
 
-    best_score = -1  # 初始化最佳 AUROC
+    os.makedirs('/kaggle/working/checkpoints', exist_ok=True)
+    best_ckp_path = f'/kaggle/working/checkpoints/best_wres50_{_class_}.pth'
+    best_score = -1
 
     for epoch in range(epochs):
         bn.train()
@@ -134,19 +136,18 @@ def train(_class_, epochs):
         # 每個 epoch 都評估一次
         auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder,
                                                   test_dataloader, device)
-        print(f"🔍 評估結果 | Pixel AUROC: {auroc_px:.3f}")
+        print(f"🔍 評估 | Pixel AUROC: {auroc_px:.3f}")
 
-        # 更新最佳模型
         if auroc_px > best_score:
             best_score = auroc_px
             torch.save({
                 'bn': bn.state_dict(),
                 'decoder': decoder.state_dict()
             }, best_ckp_path)
-            print(f"💾 更新最佳模型 ({best_score:.3f}) → {best_ckp_path}")
+            print(f"💾 更新最佳模型 → {best_ckp_path}")
 
     # 訓練結束回傳最佳結果
-    return best_score, auroc_sp, aupro_px
+    return best_ckp_path, best_score, auroc_sp, aupro_px
 
 
 if __name__ == '__main__':
@@ -160,8 +161,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     setup_seed(111)
-    auroc_px, auroc_sp, aupro_px = train(args.category, args.epochs)
 
+    # ⬅️ 直接接收最佳模型路徑
+    best_ckp, auroc_px, auroc_sp, aupro_px = train(args.category, args.epochs)
+
+    # 存 metrics
     df_metrics = pd.DataFrame([{
         'Category': args.category,
         'Pixel_AUROC': auroc_px,
@@ -169,12 +173,12 @@ if __name__ == '__main__':
         'Pixel_AUPRO': aupro_px,
         'Epochs': args.epochs
     }])
-    if not os.path.exists('metrics_all.csv'):
-        df_metrics.to_csv('metrics_all.csv', index=False)
-    else:
-        df_metrics.to_csv('metrics_all.csv',
-                          mode='a',
-                          header=False,
-                          index=False)
-    # 🔥 加入可視化儲存
-    visualization(args.category, save_path=f"results/{args.category}")
+    df_metrics.to_csv('metrics_all.csv',
+                      mode='a',
+                      header=not os.path.exists('metrics_all.csv'),
+                      index=False)
+
+    # 🔥 訓練結束自動可視化
+    visualization(args.category,
+                  ckp_path=best_ckp,
+                  save_path=f"results/{args.category}")
