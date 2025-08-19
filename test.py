@@ -382,14 +382,7 @@ from statistics import mean
 
 
 def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> float:
-    """計算每個區域重疊率（PRO）與 FPR 在 0~0.3 區間的 AUC
-    Args:
-        masks (ndarray): 測試資料的二值遮罩，形狀為 (num_test_data, h, w)
-        amaps (ndarray): 測試資料的異常圖，形狀為 (num_test_data, h, w)
-        num_th (int): 閾值數量，用於掃描不同的二值化門檻
-    Returns:
-        float: PRO AUC 值
-    """
+    """計算每個區域重疊率（PRO）與 FPR 在 0~0.3 區間的 AUC"""
 
     # --- 資料驗證 ---
     assert isinstance(amaps, ndarray), "amaps 必須是 ndarray"
@@ -420,15 +413,15 @@ def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> float:
         fp_pixels = np.logical_and(inverse_masks, binary_amaps).sum()
         fpr = fp_pixels / inverse_masks.sum()
 
-        df = pd.concat([
-            df,
-            pd.DataFrame([{
-                "pro": mean(pros) if pros else 0,
-                "fpr": fpr,
-                "threshold": th
-            }])
-        ],
-                       ignore_index=True)
+        new_row = pd.DataFrame([{
+            "pro": mean(pros) if pros else 0,
+            "fpr": fpr,
+            "threshold": th
+        }])
+
+        # ✅ 避免 concat 空或全 NA 的 DataFrame
+        if not new_row.isna().all(axis=None) and not new_row.empty:
+            df = pd.concat([df, new_row], ignore_index=True)
 
     # --- FPR 正規化與 AUC 計算 ---
     df = df[df["fpr"] < 0.3]
