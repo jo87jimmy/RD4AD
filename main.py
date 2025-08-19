@@ -83,10 +83,6 @@ def train(_class_, epochs):
     train_path = f'./mvtec/{_class_}/train'
     test_path = f'./mvtec/{_class_}'
 
-    # 確保 Kaggle working 資料夾存在
-    os.makedirs('/kaggle/working/checkpoints', exist_ok=True)
-    best_ckp_path = f'/kaggle/working/checkpoints/best_wres50_{_class_}.pth'
-
     train_data = ImageFolder(root=train_path, transform=data_transform)
     test_data = MVTecDataset(root=test_path,
                              transform=data_transform,
@@ -111,7 +107,7 @@ def train(_class_, epochs):
                                  list(bn.parameters()),
                                  lr=learning_rate,
                                  betas=(0.5, 0.999))
-
+    # 確保 Kaggle working 資料夾存在
     os.makedirs('/kaggle/working/checkpoints', exist_ok=True)
     best_ckp_path = f'/kaggle/working/checkpoints/best_wres50_{_class_}.pth'
     best_score = -1
@@ -147,13 +143,16 @@ def train(_class_, epochs):
             print(f"💾 更新最佳模型 → {best_ckp_path}")
 
     # 訓練結束回傳最佳結果
-    return best_ckp_path, best_score, auroc_sp, aupro_px
+    return best_ckp_path, best_score, auroc_sp, aupro_px,bn,decoder
 
 
 if __name__ == '__main__':
     import argparse
     import pandas as pd
     import os
+    import time
+    import shutil
+    import torch
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--category', default='bottle', type=str)
@@ -163,7 +162,39 @@ if __name__ == '__main__':
     setup_seed(111)
 
     # ⬅️ 直接接收最佳模型路徑
-    best_ckp, auroc_px, auroc_sp, aupro_px = train(args.category, args.epochs)
+    best_ckp, auroc_px, auroc_sp, aupro_px,bn,decoder = train(args.category, args.epochs)
+    print(f"最佳模型: {best_ckp}")
+    #儲存最佳的模型
+    # === 統一在 Kaggle Output 目錄保存（會被持久化） ===
+    working_dir = "/kaggle/working"
+    ckpt_dir = os.path.join(working_dir, "checkpoints")
+    os.makedirs(ckpt_dir, exist_ok=True)
+
+    # 你的模型架構代號（用於檔名一致性，配合你備份腳本的 best_wres50_*.pth）
+    arch_name = "wres50"
+    # 產生清楚的檔名：模型-類別-指標-epochs-時間戳
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    nice_name = f"best_{arch_name}_{args.category}_pxAUC{auroc_px:.4f}_e{args.epochs}_{ts}.pth"
+    nice_path = os.path.join(ckpt_dir, nice_name)
+
+    # 實際存檔（只存權重：建議存 state_dict，載入更穩定）
+    torch.save({
+        "arch": arch_name,
+        "category": args.category,
+        "epochs": args.epochs,
+        "metrics": {
+            "pixel_auroc": auroc_px,
+            "sample_auroc": auroc_sp,
+            "pixel_aupro": aupro_px
+        },
+        "bn_state_dict": bn.state_dict(),
+        "decoder_state_dict": decoder.state_dict()
+    }, nice_path)
+
+    # 同步一份固定檔名給 Step 10 抓
+    fixed_name = f"best_{arch_name}_{args.category}.pth"
+    shutil.copy2(nice_path, fixed_name)
+    print(f"📦 已同步固定檔名：{fixed_name}")
 
     # 存 metrics
     df_metrics = pd.DataFrame([{
