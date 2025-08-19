@@ -187,15 +187,14 @@ if __name__ == '__main__':
             "sample_auroc": auroc_sp,
             "pixel_aupro": aupro_px
         },
-        "bn_state": bn.state_dict(),
-        "decoder_state": decoder.state_dict()
+        "bn_state_dict": bn.state_dict(),
+        "decoder_state_dict": decoder.state_dict()
     }, nice_path)
-    print(f"✅ 已保存最佳模型到 Kaggle Output: {nice_path}")
 
-    # 再複製一份到當前目錄，用固定檔名給你的 GitHub 備份腳本抓
+    # 同步一份固定檔名給 Step 10 抓
     fixed_name = f"best_{arch_name}_{args.category}.pth"
     shutil.copy2(nice_path, fixed_name)
-    print(f"📦 已同步一份固定檔名：{fixed_name}")  
+    print(f"📦 已同步固定檔名：{fixed_name}")
 
     # 存 metrics
     df_metrics = pd.DataFrame([{
