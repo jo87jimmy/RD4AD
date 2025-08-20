@@ -1,5 +1,0 @@
-Category,Pixel_AUROC,Sample_AUROC,Pixel_AUPRO,Epochs
-carpet,0.993,1.0,0.978,2
-bottle,0.975,0.992,0.936,2
-carpet,0.993,1.0,0.978,5
-bottle,0.983,0.999,0.961,5
