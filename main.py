@@ -66,7 +66,7 @@ def loss_fucntion(a, b):
 #     return loss
 
 
-def train(_arch_, _class_, epochs):
+def train(_arch_, _class_, epochs, save_pth_path):
     # 訓練流程
     print(f"🔧 類別: {_class_} | Epochs: {epochs}")
     learning_rate = 0.005  # 學習率
@@ -111,11 +111,11 @@ def train(_arch_, _class_, epochs):
                                  betas=(0.5, 0.999))
 
     # 建立輸出資料夾
-    save_dir = save_path if save_path else 'results/best'
-    os.makedirs(save_dir, exist_ok=True)
+    save_pth_dir = save_pth_path if save_pth_path else 'pths/best'
+    os.makedirs(save_pth_dir, exist_ok=True)
 
     # 確保 Kaggle working 資料夾存在，通常可將 save_dir 放在 /kaggle/working 下
-    kaggle_save_dir = os.path.join('/kaggle/working', save_dir)
+    kaggle_save_dir = os.path.join('/kaggle/working', save_pth_dir)
     os.makedirs(kaggle_save_dir, exist_ok=True)
 
     # 設定最佳權重檔案存放路徑
@@ -177,10 +177,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     setup_seed(111)  # 固定隨機種子
-    save_path = f"results/{args.arch}_{args.category}"
+    save_visual_path = f"results/{args.arch}_{args.category}"
+    save_pth_path = f"pths/{args.arch}_{args.category}"
     # 開始訓練，並接收最佳模型路徑與結果
     best_ckp, auroc_px, auroc_sp, aupro_px, bn, decoder = train(
-        args.arch, args.category, args.epochs, save_path)
+        args.arch, args.category, args.epochs, save_pth_path)
 
     print(f"最佳模型: {best_ckp}")
 
@@ -232,4 +233,4 @@ if __name__ == '__main__':
     visualization(args.arch,
                   args.category,
                   ckp_path=best_ckp,
-                  save_path=save_path)
+                  save_path=save_visual_path)
