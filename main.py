@@ -66,7 +66,7 @@ def loss_fucntion(a, b):
 #     return loss
 
 
-def train(_class_, epochs):
+def train(_arch_, _class_, epochs):
     # 訓練流程
     print(f"🔧 類別: {_class_} | Epochs: {epochs}")
     learning_rate = 0.005  # 學習率
@@ -111,7 +111,7 @@ def train(_class_, epochs):
                                  betas=(0.5, 0.999))
     # 確保 Kaggle working 資料夾存在
     os.makedirs('/kaggle/working/checkpoints', exist_ok=True)
-    best_ckp_path = f'/kaggle/working/checkpoints/best_wres50_{_class_}.pth'
+    best_ckp_path = f'/kaggle/working/checkpoints/best_{_arch_}_{_class_}.pth'
     best_score = -1
 
     # 訓練迴圈
@@ -169,38 +169,14 @@ if __name__ == '__main__':
 
     # 開始訓練，並接收最佳模型路徑與結果
     best_ckp, auroc_px, auroc_sp, aupro_px, bn, decoder = train(
-        args.category, args.epochs)
+        args.arch, args.category, args.epochs)
+
     print(f"最佳模型: {best_ckp}")
 
     # === 儲存最佳模型到 Kaggle Output 目錄（持久化） ===
-    working_dir = "/kaggle/working"
-    ckpt_dir = os.path.join(working_dir, "checkpoints")
-    os.makedirs(ckpt_dir, exist_ok=True)
-
-    # 產生易讀的檔名：模型-類別-指標-epochs-時間戳
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    nice_name = f"best_{args.arch}_{args.category}_pxAUC{auroc_px:.4f}_e{args.epochs}_{ts}.pth"
-    nice_path = os.path.join(ckpt_dir, nice_name)
-
-    # 實際存檔（建議只存 state_dict，比較穩定）
-    torch.save(
-        {
-            "arch": args.arch,
-            "category": args.category,
-            "epochs": args.epochs,
-            "metrics": {
-                "pixel_auroc": auroc_px,
-                "sample_auroc": auroc_sp,
-                "pixel_aupro": aupro_px
-            },
-            "bn_state_dict": bn.state_dict(),
-            "decoder_state_dict": decoder.state_dict()
-        }, nice_path)
-
-    # 同步一份固定檔名（方便 pipeline 直接讀取）
-    fixed_name = f"best_{args.arch}_{args.category}.pth"
-    shutil.copy2(nice_path, fixed_name)
-    print(f"📦 已同步固定檔名：{fixed_name}")
+    # working_dir = "/kaggle/working"
+    # ckpt_dir = os.path.join(working_dir, "checkpoints")
+    # os.makedirs(ckpt_dir, exist_ok=True)
 
     # 存訓練指標到 CSV
     df_metrics = pd.DataFrame([{
