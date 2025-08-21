@@ -109,9 +109,20 @@ def train(_arch_, _class_, epochs):
                                  list(bn.parameters()),
                                  lr=learning_rate,
                                  betas=(0.5, 0.999))
-    # 確保 Kaggle working 資料夾存在
-    os.makedirs('/kaggle/working/checkpoints', exist_ok=True)
-    best_ckp_path = f'/kaggle/working/checkpoints/best_{_arch_}_{_class_}.pth'
+
+    # 建立輸出資料夾
+    save_dir = save_path if save_path else 'results/best'
+    os.makedirs(save_dir, exist_ok=True)
+
+    # 確保 Kaggle working 資料夾存在，通常可將 save_dir 放在 /kaggle/working 下
+    kaggle_save_dir = os.path.join('/kaggle/working', save_dir)
+    os.makedirs(kaggle_save_dir, exist_ok=True)
+
+    # 設定最佳權重檔案存放路徑
+    best_ckp_path = os.path.join(kaggle_save_dir,
+                                 f'best_{_arch_}_{_class_}.pth')
+
+    # 初始化最佳分數
     best_score = -1
 
     # 訓練迴圈
@@ -166,42 +177,42 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     setup_seed(111)  # 固定隨機種子
-
+    save_path = f"results/{args.arch}_{args.category}"
     # 開始訓練，並接收最佳模型路徑與結果
     best_ckp, auroc_px, auroc_sp, aupro_px, bn, decoder = train(
-        args.arch, args.category, args.epochs)
+        args.arch, args.category, args.epochs, save_path)
 
     print(f"最佳模型: {best_ckp}")
 
-    # === 儲存最佳模型到 Kaggle Output 目錄（持久化） ===
-    working_dir = "/kaggle/working"
-    ckpt_dir = os.path.join(working_dir, "checkpoints")
-    os.makedirs(ckpt_dir, exist_ok=True)
+    # # === 儲存最佳模型到 Kaggle Output 目錄（持久化） ===
+    # working_dir = "/kaggle/working"
+    # ckpt_dir = os.path.join(working_dir, "checkpoints")
+    # os.makedirs(ckpt_dir, exist_ok=True)
 
-    # 產生易讀的檔名：模型-類別-指標-epochs-時間戳
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    nice_name = f"best_{args.arch}_{args.category}_pxAUC{auroc_px:.4f}_e{args.epochs}_{ts}.pth"
-    nice_path = os.path.join(ckpt_dir, nice_name)
+    # # 產生易讀的檔名：模型-類別-指標-epochs-時間戳
+    # ts = time.strftime("%Y%m%d_%H%M%S")
+    # nice_name = f"best_{args.arch}_{args.category}_pxAUC{auroc_px:.4f}_e{args.epochs}_{ts}.pth"
+    # nice_path = os.path.join(ckpt_dir, nice_name)
 
-    # 實際存檔（建議只存 state_dict，比較穩定）
-    torch.save(
-        {
-            "arch": args.arch,
-            "category": args.category,
-            "epochs": args.epochs,
-            "metrics": {
-                "pixel_auroc": auroc_px,
-                "sample_auroc": auroc_sp,
-                "pixel_aupro": aupro_px
-            },
-            "bn_state_dict": bn.state_dict(),
-            "decoder_state_dict": decoder.state_dict()
-        }, nice_path)
+    # # 實際存檔（建議只存 state_dict，比較穩定）
+    # torch.save(
+    #     {
+    #         "arch": args.arch,
+    #         "category": args.category,
+    #         "epochs": args.epochs,
+    #         "metrics": {
+    #             "pixel_auroc": auroc_px,
+    #             "sample_auroc": auroc_sp,
+    #             "pixel_aupro": aupro_px
+    #         },
+    #         "bn_state_dict": bn.state_dict(),
+    #         "decoder_state_dict": decoder.state_dict()
+    #     }, nice_path)
 
-    # 同步一份固定檔名（方便 pipeline 直接讀取）
-    fixed_name = f"best_{args.arch}_{args.category}.pth"
-    shutil.copy2(nice_path, fixed_name)
-    print(f"📦 已同步固定檔名：{fixed_name}")
+    # # 同步一份固定檔名（方便 pipeline 直接讀取）
+    # fixed_name = f"best_{args.arch}_{args.category}.pth"
+    # shutil.copy2(nice_path, fixed_name)
+    # print(f"📦 已同步固定檔名：{fixed_name}")
 
     # 存訓練指標到 CSV
     df_metrics = pd.DataFrame([{
@@ -221,4 +232,4 @@ if __name__ == '__main__':
     visualization(args.arch,
                   args.category,
                   ckp_path=best_ckp,
-                  save_path=f"results/{args.arch}_{args.category}")
+                  save_path=save_path)
