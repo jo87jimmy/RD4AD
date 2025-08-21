@@ -178,7 +178,7 @@ if __name__ == '__main__':
 
     setup_seed(111)  # 固定隨機種子
     save_visual_path = f"results/{args.arch}_{args.category}"
-    save_pth_path = f"pths/{args.arch}_{args.category}"
+    save_pth_path = f"pths/best_{args.arch}_{args.category}"
     # 開始訓練，並接收最佳模型路徑與結果
     best_ckp, auroc_px, auroc_sp, aupro_px, bn, decoder = train(
         args.arch, args.category, args.epochs, save_pth_path)
