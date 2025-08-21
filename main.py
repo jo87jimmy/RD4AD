@@ -65,30 +65,40 @@ def loss_fucntion(a, b):
 #     loss += torch.mean(1 - cos_loss(a_map, b_map))
 #     return loss
 
+# 先在全域定義 FullModel，避免 pickle 找不到類別
+class FullModel(torch.nn.Module):
+    def __init__(self, encoder, bn, decoder):
+        super().__init__()
+        self.encoder = encoder
+        self.bn = bn
+        self.decoder = decoder
+
+    def forward(self, x):
+        feats = self.encoder(x)
+        recons = self.decoder(self.bn(feats))
+        return feats, recons
+
 
 def train(_arch_, _class_, epochs, save_pth_path):
-    # 訓練流程
     print(f"🔧 類別: {_class_} | Epochs: {epochs}")
-    learning_rate = 0.005  # 學習率
-    batch_size = 16  # 批次大小
-    image_size = 256  # 輸入影像大小
+    learning_rate = 0.005
+    batch_size = 16
+    image_size = 256
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'  # 選擇裝置
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"🖥️ 使用裝置: {device}")
 
     # 資料轉換
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
-    train_path = f'./mvtec/{_class_}/train'  # 訓練資料路徑
-    test_path = f'./mvtec/{_class_}'  # 測試資料路徑
+    train_path = f'./mvtec/{_class_}/train'
+    test_path = f'./mvtec/{_class_}'
 
-    # 載入訓練與測試資料
     train_data = ImageFolder(root=train_path, transform=data_transform)
     test_data = MVTecDataset(root=test_path,
                              transform=data_transform,
                              gt_transform=gt_transform,
                              phase="test")
 
-    # 建立 DataLoader
     train_dataloader = torch.utils.data.DataLoader(train_data,
                                                    batch_size=batch_size,
                                                    shuffle=True)
@@ -96,88 +106,67 @@ def train(_arch_, _class_, epochs, save_pth_path):
                                                   batch_size=1,
                                                   shuffle=False)
 
-    # 使用 Wide-ResNet50 預訓練模型作為編碼器
+    # 建立模型
     encoder, bn = wide_resnet50_2(pretrained=True)
     encoder = encoder.to(device)
     bn = bn.to(device)
-    encoder.eval()  # encoder 不進行訓練
-    decoder = de_wide_resnet50_2(pretrained=False)
-    decoder = decoder.to(device)
+    encoder.eval()
+    decoder = de_wide_resnet50_2(pretrained=False).to(device)
 
-    # 建立優化器，只訓練 decoder 與 BN
     optimizer = torch.optim.Adam(list(decoder.parameters()) +
                                  list(bn.parameters()),
                                  lr=learning_rate,
                                  betas=(0.5, 0.999))
 
-    # 建立輸出資料夾
     save_pth_dir = save_pth_path if save_pth_path else 'pths/best'
     os.makedirs(save_pth_dir, exist_ok=True)
 
-    # 確保 Kaggle working 資料夾存在，通常可將 save_dir 放在 /kaggle/working 下
-    # kaggle_save_dir = os.path.join('/kaggle/working', save_pth_dir)
-    # os.makedirs(kaggle_save_dir, exist_ok=True)
-
-    # 設定最佳權重檔案存放路徑
     best_ckp_path = os.path.join(save_pth_dir, f'best_{_arch_}_{_class_}.pth')
-
-    # 初始化最佳分數
     best_score = -1
 
-    # 訓練迴圈
     for epoch in range(epochs):
         bn.train()
         decoder.train()
         loss_list = []
-        for img, label in train_dataloader:
+        for img, _ in train_dataloader:
             img = img.to(device)
-            inputs = encoder(img)  # 特徵抽取
-            outputs = decoder(bn(inputs))  # 重建影像特徵
-            loss = loss_fucntion(inputs, outputs)  # 計算損失
+            inputs = encoder(img)
+            outputs = decoder(bn(inputs))
+            loss = loss_fucntion(inputs, outputs)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             loss_list.append(loss.item())
 
-        print(
-            f"📘 Epoch [{epoch + 1}/{epochs}] | Loss: {np.mean(loss_list):.4f}")
+        print(f"📘 Epoch [{epoch+1}/{epochs}] | Loss: {np.mean(loss_list):.4f}")
 
-        # 每個 epoch 都進行一次評估
-        auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder,
-                                                  test_dataloader, device)
+        # 評估
+        auroc_px, auroc_sp, aupro_px = evaluation(
+            encoder, bn, decoder, test_dataloader, device
+        )
         print(f"🔍 評估 | Pixel AUROC: {auroc_px:.3f}")
 
-        # 如果表現更好則儲存模型
+        # 更新最佳模型
         if auroc_px > best_score:
             best_score = auroc_px
+
+            # 1️⃣ 存 state_dict
             torch.save({
                 'bn': bn.state_dict(),
                 'decoder': decoder.state_dict()
             }, best_ckp_path)
-            print(f"💾 更新最佳模型 → {best_ckp_path}")
-            # ② 新增：組合完整模型並存成可直接載入的物件
-            class FullModel(torch.nn.Module):
-                def __init__(self, encoder, bn, decoder):
-                    super().__init__()
-                    self.encoder = encoder
-                    self.bn = bn
-                    self.decoder = decoder
-                def forward(self, x):
-                    feats = self.encoder(x)
-                    recons = self.decoder(self.bn(feats))
-                    return feats, recons
+            print(f"💾 更新最佳權重檔 → {best_ckp_path}")
 
+            # 2️⃣ 存完整模型物件（推論端可直接 torch.load）
             full_model = FullModel(encoder, bn, decoder).to(device)
             full_model.eval()
-
             full_model_path = os.path.join(
                 save_pth_dir, f'fullmodel_{_arch_}_{_class_}.pth'
             )
             torch.save(full_model, full_model_path)
-            print(f"💾 同時保存整個模型物件 → {full_model_path}")
-    # 訓練結束回傳最佳結果
-    return best_ckp_path, best_score, auroc_sp, aupro_px, bn, decoder
+            print(f"💾 同時保存完整模型 → {full_model_path}")
 
+    return best_ckp_path, best_score, auroc_sp, aupro_px, bn, decoder
 
 if __name__ == '__main__':
     import argparse
