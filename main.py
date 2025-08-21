@@ -115,12 +115,11 @@ def train(_arch_, _class_, epochs, save_pth_path):
     os.makedirs(save_pth_dir, exist_ok=True)
 
     # 確保 Kaggle working 資料夾存在，通常可將 save_dir 放在 /kaggle/working 下
-    kaggle_save_dir = os.path.join('/kaggle/working', save_pth_dir)
-    os.makedirs(kaggle_save_dir, exist_ok=True)
+    # kaggle_save_dir = os.path.join('/kaggle/working', save_pth_dir)
+    # os.makedirs(kaggle_save_dir, exist_ok=True)
 
     # 設定最佳權重檔案存放路徑
-    best_ckp_path = os.path.join(kaggle_save_dir,
-                                 f'best_{_arch_}_{_class_}.pth')
+    best_ckp_path = os.path.join(save_pth_dir, f'best_{_arch_}_{_class_}.pth')
 
     # 初始化最佳分數
     best_score = -1
