@@ -155,7 +155,26 @@ def train(_arch_, _class_, epochs, save_pth_path):
                 'decoder': decoder.state_dict()
             }, best_ckp_path)
             print(f"💾 更新最佳模型 → {best_ckp_path}")
+            # ② 新增：組合完整模型並存成可直接載入的物件
+            class FullModel(torch.nn.Module):
+                def __init__(self, encoder, bn, decoder):
+                    super().__init__()
+                    self.encoder = encoder
+                    self.bn = bn
+                    self.decoder = decoder
+                def forward(self, x):
+                    feats = self.encoder(x)
+                    recons = self.decoder(self.bn(feats))
+                    return feats, recons
 
+            full_model = FullModel(encoder, bn, decoder).to(device)
+            full_model.eval()
+
+            full_model_path = os.path.join(
+                save_pth_dir, f'fullmodel_{_arch_}_{_class_}.pth'
+            )
+            torch.save(full_model, full_model_path)
+            print(f"💾 同時保存整個模型物件 → {full_model_path}")
     # 訓練結束回傳最佳結果
     return best_ckp_path, best_score, auroc_sp, aupro_px, bn, decoder
 
