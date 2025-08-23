@@ -10,7 +10,7 @@ from de_resnet import de_wide_resnet50_2 # 引入解碼器 ResNet
 from dataset import MVTecDataset  # MVTec 資料集類別
 # import torch.backends.cudnn as cudnn  # CUDA cuDNN 加速
 import argparse  # 命令列參數處理
-from test import evaluation, visualization, test  # 測試、評估與可視化函式
+from test import evaluation, visualization, test,cal_anomaly_map,min_max_norm,cvt2heatmap,show_cam_on_image  # 測試、評估與可視化函式
 from torch.nn import functional as F  # 引入 PyTorch 的函式介面
 def setup_seed(seed):
     # 設定隨機種子，確保實驗可重現
@@ -195,3 +195,37 @@ if __name__ == '__main__':
                   args.category,
                   ckp_path=best_ckp,
                   save_path=save_visual_path)
+    # import torch
+    # import cv2
+    # import numpy as np
+    # from scipy.ndimage import gaussian_filter
+    # import torch.nn.functional as F    
+    # # 1️⃣ 一行載入完整模型（需訓練時整個 torch 模型保存）
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    # # pths\best_wres50_bottle\fullmodel_wres50_bottle.pth
+    # # model = torch.load("fullmodel_wres50_bottle.pth", map_location=device)
+    # model = torch.load("pths/best_wres50_bottle/fullmodel_wres50_bottle.pth", map_location=device)
+    # model.to(device).eval()
+    # # feats, recons = model(img_tensor)
+
+    # # 2️⃣ 讀取單張圖片
+    # img_bgr = cv2.imread("test_bottle.png")
+    # img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    # img_resized = cv2.resize(img_rgb, (256, 256))
+    # img_tensor = torch.from_numpy(img_resized).permute(2, 0, 1).float().unsqueeze(0) / 255.0
+    # img_tensor = img_tensor.to(device)
+
+    # # 3️⃣ 推論
+    # with torch.no_grad():
+    #     feats, recons = model(img_tensor)  # 假設你的模型 forward 回傳 (features, reconstructions)
+    #     anomaly_map, _ = cal_anomaly_map([feats[-1]], [recons[-1]], img_tensor.shape[-1])
+    #     anomaly_map = gaussian_filter(anomaly_map, sigma=4)
+    #     ano_map_norm = min_max_norm(anomaly_map) * 255
+    #     ano_map_color = cvt2heatmap(ano_map_norm)
+
+    # # 4️⃣ 疊加熱力圖
+    # overlay = show_cam_on_image(img_resized, ano_map_color)
+
+    # # 5️⃣ 儲存
+    # cv2.imwrite("heatmap_overlay.png", cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+    # print("✅ 單張影像缺陷熱力圖已完成 → heatmap_overlay.png")
