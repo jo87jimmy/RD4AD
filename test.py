@@ -1,10 +1,10 @@
 import torch  # 引入 PyTorch 深度學習框架
 from dataset import get_data_transforms  # 從 dataset.py 匯入資料增強方法與資料載入函式
-from torchvision.datasets import ImageFolder  # 匯入 PyTorch 官方圖片資料集讀取工具
+# from torchvision.datasets import ImageFolder  # 匯入 PyTorch 官方圖片資料集讀取工具
 import numpy as np  # 匯入數值計算函式庫 NumPy
 # from torch.utils.data import DataLoader  # PyTorch 的資料載入器 (batch/迭代器)
-from resnet import resnet18, resnet34, resnet50, wide_resnet50_2  # 匯入自定義的 ResNet 模型
-from de_resnet import de_resnet18, de_resnet50, de_wide_resnet50_2  # 匯入 ResNet 的反卷積解碼器
+from resnet import  wide_resnet50_2  # 匯入自定義的 ResNet 模型
+from de_resnet import  de_wide_resnet50_2  # 匯入 ResNet 的反卷積解碼器
 from dataset import MVTecDataset  # 匯入 MVTec 資料集定義類別 (瑕疵檢測用)
 from torch.nn import functional as F  # 匯入 PyTorch 常用函數 (如激活、卷積、插值等)
 from sklearn.metrics import roc_auc_score  # 匯入 sklearn 的 ROC AUC 評估指標
@@ -191,93 +191,6 @@ def visualization(_arch_, _class_, save_path=None, ckp_path=None):
             cv2.imwrite(f"{save_dir}/{count:03d}_ad.png", overlay)
             count += 1
     print(f"✅ 可視化完成，共儲存 {count} 張圖片至 {save_dir}")
-# =============================
-# 函式：另一種可視化 (nd)
-# =============================
-# def vis_nd(name, _class_):
-#     print(name, ':', _class_)
-#     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-#     print(device)
-
-#     # 權重檔路徑
-#     ckp_path = './checkpoints/' + name + '_' + str(_class_) + '.pth'
-#     train_dataloader, test_dataloader = load_data(name, _class_, batch_size=16)
-
-#     # 使用 ResNet18
-#     encoder, bn = resnet18(pretrained=True)
-#     encoder = encoder.to(device)
-#     bn = bn.to(device)
-#     encoder.eval()
-#     decoder = de_resnet18(pretrained=False)
-#     decoder = decoder.to(device)
-
-#     # 載入權重
-#     ckp = torch.load(ckp_path)
-#     decoder.load_state_dict(ckp['decoder'])
-#     bn.load_state_dict(ckp['bn'])
-#     decoder.eval()
-#     bn.eval()
-
-#     gt_list_sp = []  # Ground Truth 標籤
-#     prmax_list_sp = []  # 最大異常分數
-#     prmean_list_sp = []  # 平均異常分數
-
-#     count = 0
-#     with torch.no_grad():
-#         for img, label in test_dataloader:
-#             if img.shape[1] == 1:  # 如果是灰階，轉成 3 通道
-#                 img = img.repeat(1, 3, 1, 1)
-
-#             img = img.to(device)
-#             inputs = encoder(img)
-#             outputs = decoder(bn(inputs))
-
-#             anomaly_map, amap_list = cal_anomaly_map(inputs,
-#                                                      outputs,
-#                                                      img.shape[-1],
-#                                                      amap_mode='a')
-
-#             ano_map = min_max_norm(anomaly_map)
-#             ano_map = cvt2heatmap(ano_map * 255)
-
-#             img = cv2.cvtColor(
-#                 img.permute(0, 2, 3, 1).cpu().numpy()[0] * 255,
-#                 cv2.COLOR_BGR2RGB)
-#             img = np.uint8(min_max_norm(img) * 255)
-
-#             # 儲存原圖
-#             cv2.imwrite(
-#                 './nd_results/' + name + '_' + str(_class_) + '_' +
-#                 str(count) + '_' + 'org.png', img)
-
-#             # 疊加熱力圖
-#             ano_map = show_cam_on_image(img, ano_map)
-#             cv2.imwrite(
-#                 './nd_results/' + name + '_' + str(_class_) + '_' +
-#                 str(count) + '_' + 'ad.png', ano_map)
-
-#             gt_list_sp.extend(label.cpu().data.numpy())  # 加入 GT
-#             prmax_list_sp.append(np.max(anomaly_map))  # 加入最大異常值
-#             prmean_list_sp.append(np.sum(anomaly_map))  # 加入總和
-
-#         # 將 GT 轉換為 0=正常, 1=異常
-#         gt_list_sp = np.array(gt_list_sp)
-#         indx1 = gt_list_sp == _class_
-#         indx2 = gt_list_sp != _class_
-#         gt_list_sp[indx1] = 0
-#         gt_list_sp[indx2] = 1
-
-#         # 正規化異常分數
-#         ano_score = (prmean_list_sp - np.min(prmean_list_sp)) / (
-#             np.max(prmean_list_sp) - np.min(prmean_list_sp))
-
-#         vis_data = {}
-#         vis_data['Anomaly Score'] = ano_score
-#         vis_data['Ground Truth'] = np.array(gt_list_sp)
-
-#         # 存成 pkl 檔案
-#         with open('vis.pkl', 'wb') as f:
-#             pickle.dump(vis_data, f, pickle.HIGHEST_PROTOCOL)
 import numpy as np
 import pandas as pd
 from numpy import ndarray
@@ -333,45 +246,3 @@ def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> float:
     df["fpr"] = df["fpr"] / df["fpr"].max()  # FPR 正規化
     pro_auc = auc(df["fpr"], df["pro"])  # 計算 AUC
     return pro_auc
-# =============================
-# 函式：異常檢測評估 (AUROC)
-# =============================
-# def detection(encoder, bn, decoder, dataloader, device, _class_):
-#     bn.load_state_dict(bn.state_dict())
-#     bn.eval()
-#     decoder.eval()
-
-#     gt_list_sp = []
-#     prmax_list_sp = []
-#     prmean_list_sp = []
-
-#     with torch.no_grad():
-#         for img, label in dataloader:
-#             img = img.to(device)
-#             if img.shape[1] == 1:  # 灰階轉 RGB
-#                 img = img.repeat(1, 3, 1, 1)
-#             label = label.to(device)
-
-#             inputs = encoder(img)
-#             outputs = decoder(bn(inputs))
-
-#             anomaly_map, _ = cal_anomaly_map(inputs, outputs, img.shape[-1],
-#                                              'acc')
-#             anomaly_map = gaussian_filter(anomaly_map, sigma=4)  # 高斯平滑
-
-#             gt_list_sp.extend(label.cpu().data.numpy())
-#             prmax_list_sp.append(np.max(anomaly_map))  # 最大值
-#             prmean_list_sp.append(np.sum(anomaly_map))  # 總和
-
-#         # 轉換 GT 為二值 (0=正常, 1=異常)
-#         gt_list_sp = np.array(gt_list_sp)
-#         indx1 = gt_list_sp == _class_
-#         indx2 = gt_list_sp != _class_
-#         gt_list_sp[indx1] = 0
-#         gt_list_sp[indx2] = 1
-
-#         # 計算 ROC AUC
-#         auroc_sp_max = round(roc_auc_score(gt_list_sp, prmax_list_sp), 4)
-#         auroc_sp_mean = round(roc_auc_score(gt_list_sp, prmean_list_sp), 4)
-
-#     return auroc_sp_max, auroc_sp_mean
