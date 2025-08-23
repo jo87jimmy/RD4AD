@@ -156,8 +156,10 @@ def visualization(_arch_, _class_, save_path=None, ckp_path=None):
     encoder.eval()  # 設定為推理模式
     decoder = de_wide_resnet50_2(pretrained=False)  # 解碼器 (Decoder)
     decoder = decoder.to(device)
-    # ✅ 載入已訓練好的模型權重
-    ckp = torch.load(ckp_path, map_location=device)
+    
+    # Fixed line - explicitly set weights_only=False to suppress warning
+    ckp = torch.load(ckp_path, map_location=device, weights_only=False)
+    
     for k in list(ckp['bn'].keys()):
         if 'memory' in k:  # 移除 batch norm 的 "memory" 欄位，避免載入失敗
             del ckp['bn'][k]
